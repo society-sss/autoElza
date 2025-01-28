@@ -1,10 +1,69 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from '/vite.svg'
+import { useEffect, useState } from 'react'
 import './App.css'
 
+interface TelegramMessage {
+    message: {
+    photo?: { file_id: string }[]; // Массив объектов с file_id
+    caption?: string; // Подпись к фото
+    };
+}
+
+interface TelegramResponse {
+    result: TelegramMessage[]; // Массив сообщений
+}
+
+interface Car {
+    caption: string;
+    photoUrl: string;
+}
+
 function App() {
-  const [count, setCount] = useState(0)
+
+    const [cars, setCars] = useState<Car[]>([]); // Храним данные о машинах
+
+
+    const fetchTelegramData = async () => {
+        try {
+          const response = await fetch(
+            "https://api.telegram.org/bot7683434863:AAGLEww0wPLvo9LVLEppXVmVYn3weVvG-1w/getUpdates"
+          );
+          const data: TelegramResponse = await response.json();
+      
+          // Фильтруем сообщения с фотографиями и подписями
+          const carsData = await Promise.all(
+            data.result
+              .filter(
+                (item) => item.message?.photo && item.message?.caption // Только сообщения с фото и подписью
+              )
+              .map(async (item) => {
+                const photos = item.message.photo!;
+                const largestPhoto = photos[photos.length - 1]; // Выбираем фото с максимальным разрешением
+      
+                // Получаем ссылку на файл через метод getFile
+                const fileResponse = await fetch(
+                  `https://api.telegram.org/bot7683434863:AAGLEww0wPLvo9LVLEppXVmVYn3weVvG-1w/getFile?file_id=${largestPhoto.file_id}`
+                );
+                const fileData = await fileResponse.json();
+      
+                return {
+                  caption: item.message.caption!, // Текст сообщения
+                  photoUrl: `https://api.telegram.org/file/bot7683434863:AAGLEww0wPLvo9LVLEppXVmVYn3weVvG-1w/${fileData.result.file_path}`, // URL фото
+                };
+              })
+          );
+      
+          console.log("Массив данных о машинах:", carsData);
+          setCars(carsData); // Сохраняем данные в состоянии
+        } catch (error) {
+          console.error("Ошибка при загрузке данных из Telegram:", error);
+        }
+      };
+      
+      
+
+    useEffect(() => {
+        fetchTelegramData(); // Загружаем данные при первом рендере
+    }, []);
 
   return (
     <>
@@ -59,39 +118,37 @@ function App() {
     <section id="cars" className="container py-5">
         <h2 className="text-center mb-4">Наши автомобили</h2>
         <div className="row g-4">
-            <div className="col-md-4">
-                <div className="card car-card">
-                    <img src="https://vipmotors.ae/wp-content/uploads/PHOTO-2024-09-06-14-29-50-2-scaled-e1726492128423-825x483.jpg"
-                        className="card-img-top" alt="Автомобиль"/>
-                    <div className="card-body">
-                        <h5 className="card-title">Mercedes-Benz S-className</h5>
-                        <p className="card-text">Цена: $50,000</p>
-                        <a href="#contact" className="btn btn-primary">Связаться</a>
+        {cars.length > 0 ? (
+            cars.map((car, index) => {
+                // Разделяем caption на название и цену
+                const [name, ...details] = car.caption.split("\n"); // Разделяем строки по новой линии
+                const price = details.find((line) => line.includes("Цена:")) || ""; // Ищем строку с ценой
+                const description = details.filter((line) => !line.includes("Цена:")).join(" "); // Остальное в описание
+
+                return (
+                    <div className="col-md-4 card-car" key={index}>
+                        <div className="card car-card">
+                            <img
+                                src={car.photoUrl}
+                                className="card-img-top"
+                                alt="Автомобиль"
+                            />
+                            <div className="card-body">
+                                <h5 className="card-title">{name}</h5>
+                                {price && <p className="card-price">{price}</p>} {/* Если цена есть, отображаем */}
+                                {description && <p className="card-text">{description}</p>} {/* Остальной текст */}
+                                <a href="#contact" className="btn btn-primary">
+                                    Связаться
+                                </a>
+                            </div>
+                        </div>
                     </div>
-                </div>
-            </div>
-            <div className="col-md-4">
-                <div className="card car-card">
-                    <img src="https://vipmotors.ae/wp-content/uploads/PHOTO-2024-08-06-16-18-00-825x483.jpg"
-                        className="card-img-top" alt="Автомобиль"/>
-                    <div className="card-body">
-                        <h5 className="card-title">BMW 7 Series</h5>
-                        <p className="card-text">Цена: $60,000</p>
-                        <a href="#contact" className="btn btn-primary">Связаться</a>
-                    </div>
-                </div>
-            </div>
-            <div className="col-md-4">
-                <div className="card car-card">
-                    <img src="https://vipmotors.ae/wp-content/uploads/PHOTO-2023-09-12-11-47-13-9-e1722520721103-825x483.jpg"
-                        className="card-img-top" alt="Автомобиль"/>
-                    <div className="card-body">
-                        <h5 className="card-title">Audi A8</h5>
-                        <p className="card-text">Цена: $55,000</p>
-                        <a href="#contact" className="btn btn-primary">Связаться</a>
-                    </div>
-                </div>
-            </div>
+                );
+            })
+        ) : (
+            <p className="text-center">Загрузка автомобилей...</p>
+        )}
+
         </div>
     </section>
 
